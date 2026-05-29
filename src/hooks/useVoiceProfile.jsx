@@ -53,3 +53,4 @@ export const useVoiceProfile = () => {
 
     return { startListening, stopListening, generateProfile, listening, transcript, isProcessing, polishedProfile, error, setError,browserSupportsSpeechRecognition, resetTranscript };
 };
+
