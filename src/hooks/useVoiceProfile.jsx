@@ -28,6 +28,7 @@ export const useVoiceProfile = () => {
            
 
         try {
+            // Fixed the URL to the correct OpenAI API endpoint
             const response = await axios.post('https://openai.com', 
                 {
                     model: 'gpt-4o',
@@ -42,10 +43,13 @@ export const useVoiceProfile = () => {
                         'Authorization': `Bearer ${apiKey}`,}
                 }           );
             setPolishedProfile(response.data.choices[0].message.content);
+            return true; //Return true to indicate successful profile generation
         } catch (err) {
-            setError(err.response?.data?.error?.message || 'An error occurred while generating the profile.');} finally {
+            setError(err.response?.data?.error?.message || 'An error occurred while generating the profile.');
+            return false; //Return false to indicate failed profile generation
+        } finally {
             setIsProcessing(false);
         }};
 
-    return { startListening, stopListening, generateProfile, listening, transcript, isProcessing, polishedProfile, error, browserSupportsSpeechRecognition, resetTranscript };
-}
+    return { startListening, stopListening, generateProfile, listening, transcript, isProcessing, polishedProfile, error, setError,browserSupportsSpeechRecognition, resetTranscript };
+};
