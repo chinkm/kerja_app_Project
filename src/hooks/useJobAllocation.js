@@ -31,6 +31,7 @@ export function useJobAllocation(initialWorkers, initialJobs) {
       const constraints = [];
       const objective = {};
       const binaryVariablesList = [];  // Track binary variable names separately
+      const boundsList = []; // Added boundary reference tracking block
 
       //1. Filter jobs by skill/experience compatibility & populate variables
       workers.forEach(worker => {
@@ -44,6 +45,9 @@ export function useJobAllocation(initialWorkers, initialJobs) {
             vars[varName] = 1;
             binaryVariablesList.push(varName); // Mark this variable as a binary target
 
+            // Define strict lower and upper flags for the decision matrix columns
+            boundsList.push({ name: varName, type: glpkInstance.GLP_DB, lb: 0.0, ub: 1.0 });
+
             //Objective: maximize satisfaction of hitting financial/hour targets
             const jobValue = job.payRate * job.estimatedHours; // Example value function
             objective[varName] = jobValue;
@@ -52,8 +56,8 @@ export function useJobAllocation(initialWorkers, initialJobs) {
       });
 
       //2. Constraints: Every job can be assigned to AT Most one worker
-      jobs.forEach(job => {
-        const jobVars = Object.keys(vars).filter(v => v.endsWith(`_JOB-${job.id}`));
+       jobs.forEach(job => {
+        const jobVars = binaryVariablesList.filter(v => v.endsWith(`_J${job.id}`));
         if (jobVars.length > 0) {
           constraints.push({
             name: `job_limit_${job.id}`,
@@ -71,8 +75,9 @@ export function useJobAllocation(initialWorkers, initialJobs) {
             constraints.push({
               name: `income_limit_${worker.id}`,
               vars: workerVars.map(v => {
-                const jobId = v.split('_J')[1]; // Cleanly extract raw matching ID
-                const job = jobs.find(j => j.id === jobId);
+                // FIX: Added the [1] array index bracket to grab the clean string ID segment
+                const targetJobId = v.split('_J')[1]; 
+                const job = jobs.find(j => j.id === targetJobId);
                 return { name: v, coef: job ? (job.payRate * job.estimatedHours) : 0 };
               }),
               bnds: { type: glpkInstance.GLP_UP, ub: worker.targetIncome * 1.5, lb: 0.0 }
@@ -81,8 +86,9 @@ export function useJobAllocation(initialWorkers, initialJobs) {
             constraints.push({
               name: `hours_target_${worker.id}`,
               vars: workerVars.map(v => {
-                const jobId = v.split('_J')[1];
-                const job = jobs.find(j => j.id === jobId);
+                // FIX: Added the [1] array index bracket here as well
+                const targetJobId = v.split('_J')[1];
+                const job = jobs.find(j => j.id === targetJobId);
                 return { name: v, coef: job ? job.estimatedHours : 0 };
               }),
               bnds: { type: glpkInstance.GLP_UP, ub: worker.targetHours * 1.5, lb: 0.0 }
@@ -91,30 +97,32 @@ export function useJobAllocation(initialWorkers, initialJobs) {
         }
       });
 
+
       // Compile and solve the Linear Programming system
-      const lpProblem = {
+       const lpProblem = {
         name: 'JobAllocation',
         objective: {
           direction: glpkInstance.GLP_MAX,
           vars: Object.keys(objective).map(v => ({ name: v, coef: objective[v] }))
         },
         subjectTo: constraints,
-        binaries: binaryVariablesList
+        bounds: boundsList, // Injected bound rules array safely
+        binaries: binaryVariablesList 
       };
 
       const solution = glpkInstance.solve(lpProblem);
 
+      // Verify calculation logs safely
       if (!solution || (!solution.result && !solution.vars)) {
-        console.warn("GLPK Solver could not find an optimized solution with current targets.");
+        console.warn("GLPK Solver matrix could not find an optimization map combination.");
         alert("Allocation failed to find a valid match. Try loosening contractor target restrictions!");
         setIsAllocating(false);
         return;
       }
 
-      // Capture outputs regardless of engine version variations safely
       const finalVars = solution.result?.vars || solution.vars || {};
 
-      // Map LP solution matrix back to our React state structural format
+      // Map solutions to template variables
       const finalAllocations = workers.map(worker => {
         const assignedJobs = [];
         let totalIncome = 0;
@@ -122,7 +130,6 @@ export function useJobAllocation(initialWorkers, initialJobs) {
 
         jobs.forEach(job => {
           const varName = `x_W${worker.id}_J${job.id}`;
-          
           if (finalVars && finalVars[varName] === 1) {
             assignedJobs.push(job);
             totalIncome += job.payRate * job.estimatedHours;
@@ -130,17 +137,15 @@ export function useJobAllocation(initialWorkers, initialJobs) {
           }
         });
 
-
         return {
           id: `alloc_${worker.id}`,
           workerId: worker.id,
           assignedJobs,
-          yieldedIncome: totalIncome, // Synchronized with layout expectation fields
+          yieldedIncome: totalIncome, // Synchronized with UI field expectations
           totalHours
         };
       });
 
-      
       setAllocations(finalAllocations);
     } catch (error) {
       console.error('Error during LP allocation:', error);
@@ -148,6 +153,7 @@ export function useJobAllocation(initialWorkers, initialJobs) {
       setIsAllocating(false);
     }
   };
+
 
   //======================================================================
   // APPROACH 2: Generative AI using Google GenAI SDK
