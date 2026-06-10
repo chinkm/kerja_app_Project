@@ -22,7 +22,7 @@ export const useVoiceProfile = () => {
         // Sends the spoken skills to OpenAI API (e.g. OpenAI, Claude) to format it into a polished profile
 
     const generateProfile = async (apiKey, languageName='English') => {
-        if (!transcript) return;
+        if (!transcript) return false;
         setIsProcessing(true);
         setError(null);
     
@@ -36,9 +36,9 @@ export const useVoiceProfile = () => {
 
         try {
             // Fixed the URL to the correct OpenAI API endpoint
-            const response = await axios.post('https://openai.com', 
+            const response = await axios.post('https://googleapis.com', 
                 {
-                    model: 'gpt-4o',
+                    model: 'gemini-2.5-flash',
                     messages: [
                         { role: 'system', content: `You are an expert professional profile builder. The user will provide spoken text.Your job is to clean up filler words, organize skills professionally, and return a polished written profile.
                         CRITICAL RULE: The final polished profile must be ${outputLanguageInstruction}. Do not include any meta-commentary, just the final profile text.` },
@@ -50,7 +50,7 @@ export const useVoiceProfile = () => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${apiKey}`,}
                 }           );
-            setPolishedProfile(response.data.choices.message.content);
+            setPolishedProfile(response.data.choices[0].message.content);
             return true; //Return true to indicate successful profile generation
         } catch (err) {
             setError(err.response?.data?.error?.message || 'An error occurred while generating the profile.');

@@ -11,23 +11,21 @@ const SUPPORTED_LANGUAGES = [
 
 
 export default function VoiceProfileModule() { 
-    const [apiKey, setApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || ''); 
+    // AUTOMATION: Automatically read the Gemini key from Vite's env variables on init
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || ''; 
     const [selectedLang, setSelectedLang] = useState(SUPPORTED_LANGUAGES[0]);
-    const [generationCount, setGenerationCount] = useState(0);
+    // 1. Lazy Initialize Generation Count (Perfect!)
+    const [generationCount, setGenerationCount] = useState(() => {
+        const storedCount = localStorage.getItem('generationCount');
+        return storedCount ? parseInt(storedCount, 10) : 0;
+    });
     // const [showRateLimitWarning, setShowRateLimitWarning] = useState(false);
     const MAX_FREE_GENERATIONS = 3; // Limit for free users
     const { startListening, stopListening, generateProfile, listening, transcript, isProcessing, polishedProfile, error, 
     setError,  // Added to manually trigger limit errors if needed
     browserSupportsSpeechRecognition, resetTranscript } = useVoiceProfile();
 
-    // Load intial usage count from localStorage on page load
-    useEffect(() => {
-        const storedCount = localStorage.getItem('generationCount');
-        if (storedCount) {
-            setGenerationCount(parseInt(storedCount, 10));
-        }
-    }, []);
-
+    
     const handleStartListening = () => {
         if (generationCount >= MAX_FREE_GENERATIONS) {
             setError(`You have reached the free generation limit of ${MAX_FREE_GENERATIONS}. Please upgrade to continue.`);
@@ -35,23 +33,26 @@ export default function VoiceProfileModule() {
         }
         // Pass the actual browser runtime string code (e.g. 'en-US') to startListening for accurate language recognition
         startListening(selectedLang.code);
-    }
+    };
 
     //Wrapper function to handle generation and increment the count
-    const handleGenerateProfile = async (key) => {
-        if (generationCount >= MAX_FREE_GENERATIONS) {
-
+    const handleGenerateProfile = async () => {
+        if (generationCount >= MAX_FREE_GENERATIONS) return;
+        
+        // SECURITY ALERT: If the .env configuration is missing, stop early to avoid crashes
+        if (!apiKey) {
+            setError("Error: System Gemini API Key is missing. Check your local .env configuration file.");
             return;
         }
-        const success = await generateProfile(key, selectedLang.name);
+        
+        const success = await generateProfile(apiKey, selectedLang.name);
         if (success) {
             const newCount = generationCount + 1;
             setGenerationCount(newCount);
             localStorage.setItem('generationCount', newCount);
         }
-    }
-
-    
+    };
+  
 
     if (!browserSupportsSpeechRecognition) {
         return (<div className="p-6 text-center text-red-600">Sorry, your browser does not support speech recognition.</div>);}
@@ -64,7 +65,7 @@ export default function VoiceProfileModule() {
 
             {/* Usage Limit Warning */}
             <div className="mb-6 text-sm font-medium text-gray-600">
-                Free users can generate up to <span className="font-bold">{MAX_FREE_GENERATIONS}</span> polished profiles. You have used <span className="font-bold">{generationCount}</span>. {isLimitReached && <span className="text-red-500">You have reached your limit. Please upgrade to continue.</span>}
+                Free users can generate up to <span className="font-bold">{MAX_FREE_GENERATIONS}</span> polished profiles. You have used <span className="font-bold">{generationCount}</span>. {isLimitReached && <span className="text-red-500 block mt-1">You have reached your limit. Please upgrade to continue.</span>}
             </div>
 
             {/* Language Selection */}
@@ -84,22 +85,12 @@ export default function VoiceProfileModule() {
                 </select>
             </div>
 
-            {/* API Key Input */} 
-            <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key</label>
-                <input type="password" 
-                className="w-full p-2 border rounded-md" 
-                placeholder="sk-..." 
-                value={apiKey} 
-                onChange={(e) => setApiKey(e.target.value)}
-                disabled={isLimitReached} />
-            </div> 
-            
+                       
             {/* Voice Controls */}
             <div className="flex gap-4 items-center mb-6">
                 <button onClick={listening ? stopListening : handleStartListening}
                 disabled={isLimitReached}
-                className={`px-6 py-3 rounded-full font-semibold text-black transition${isLimitReached ? 'bg-gray-300 cursor-not-allowed' :listening ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600' }`}> 
+                className={`px-6 py-3 rounded-full font-semibold text-black transition ${isLimitReached ? 'bg-gray-300 cursor-not-allowed' :listening ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600' }`}> 
                 {listening ? '⏹ Stop Recording' : `🎤 Start Speaking in ${selectedLang.name}`} </button>
 
                 {listening && <span className="text-red-500 animate-pulse">Listening ({selectedLang.name})...</span>}
@@ -132,20 +123,31 @@ export default function VoiceProfileModule() {
             ) : (
 
             /* Generate Profile Button */
-            <button onClick={() => generateProfile(apiKey, selectedLang.name)} disabled={!transcript || isProcessing || !apiKey} className={`w-full py-3 px-4 rounded-md text-white ${!transcript || isProcessing || !apiKey ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}> 
-            {isProcessing ? 'Polishing Profile...': '✨ Generate Polished Profile'} </button>
+            <button 
+                    onClick={handleGenerateProfile} 
+                    disabled={!transcript || isProcessing} 
+                    className={`w-full py-3 px-4 rounded-md text-white ${
+                        !transcript || isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+                    }`}
+                > 
+                    {isProcessing ? 'Polishing Profile...' : '✨ Generate Polished Profile'} 
+                </button>
             )}
 
             {/* Error State */}
             {error && <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
             {/* Polished Profile Output */}
-            {polishedProfile && <div className="mt-6 p-4 bg-gray-50 border rounded-md min-h-[100px] text-gray-800">
-                <h2 className="text-lg font-semibold mb-2 text-gray-700">Polished Written Profile ({selectedLang.name.includes('Sabahan') ? 'English Output' : `${selectedLang.name} Output`})
-                </h2>
-                <p className="whitespace-pre-wrap">{polishedProfile}</p>
-            </div>}
+            {polishedProfile && (
+                <div className="mt-6 p-4 bg-gray-50 border rounded-md min-h-[100px] text-gray-800">
+                    <h2 className="text-lg font-semibold mb-2 text-gray-700">
+                        Polished Written Profile ({selectedLang.name.includes('Sabahan') ? 'English Output' : `${selectedLang.name} Output`})
+                    </h2>
+                    <p className="whitespace-pre-wrap">{polishedProfile}</p>
+                </div>
+            )}
+        </div>
+    );
+}
 
-            
-        </div>)}
 
