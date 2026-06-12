@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import SpeechRecognition, {useSpeechRecognition} from 'react-speech-recognition';
-import axios from 'axios';
+import { GoogleGenAI } from '@google/genai';
 
 export const useVoiceProfile = () => {
     const [isProcessing, setIsProcessing] = useState(false);
@@ -35,41 +35,30 @@ export const useVoiceProfile = () => {
         }    
 
         try {
-            // Using Google Gemini API endpoint
-            const response = await axios.post(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-                {
-                    contents: [
-                        {
-                            role: 'user',
-                            parts: [
-                                {
-                                    text: `You are an expert professional profile builder. The user will provide spoken text. Your job is to clean up filler words, organize skills professionally, and return a polished written profile.
-                        CRITICAL RULE: The final polished profile must be ${outputLanguageInstruction}. Do not include any meta-commentary, just the final profile text.
+            // Use the official Google GenAI SDK and a supported Gemini model
+            const ai = new GoogleGenAI({ apiKey });
 
-Here are the skills I spoke: ${transcript}. Please format this into a polished profile.`
-                                }
-                            ]
-                        }
-                    ],
-                    generationConfig: {
-                        temperature: 0.7,
-                    }
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+            const promptText = `You are an expert professional profile builder. The user will provide spoken text. Your job is to clean up filler words, organize skills professionally, and return a polished written profile.\nCRITICAL RULE: The final polished profile must be ${outputLanguageInstruction}. Do not include any meta-commentary, just the final profile text.\nHere are the skills I spoke: ${transcript}. Please format this into a polished profile.`;
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: [promptText],
+                config: {
+                    temperature: 0.7
                 }
-            );
-            setPolishedProfile(response.data.candidates[0].content.parts[0].text);
-            return true; //Return true to indicate successful profile generation
+            });
+
+            // SDK may return `.text` for plain text responses or nested output fields
+            const textResult = response?.text || response?.output?.[0]?.content?.[0]?.text || '';
+            setPolishedProfile(textResult);
+            return true;
         } catch (err) {
-            setError(err.response?.data?.error?.message || 'An error occurred while generating the profile.');
-            return false; //Return false to indicate failed profile generation
+            setError(err?.message || 'An error occurred while generating the profile.');
+            return false;
         } finally {
             setIsProcessing(false);
-        }};
+        }
+    };
 
     return { startListening, stopListening, generateProfile, listening, transcript, isProcessing, polishedProfile, error, setError,browserSupportsSpeechRecognition, resetTranscript };
 };
