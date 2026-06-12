@@ -12,7 +12,7 @@ const SUPPORTED_LANGUAGES = [
 
 export default function VoiceProfileModule() { 
     // AUTOMATION: Automatically read the Gemini key from Vite's env variables on init
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || ''; 
+    const apiKey = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || ''; 
     const [selectedLang, setSelectedLang] = useState(SUPPORTED_LANGUAGES[0]);
     // 1. Lazy Initialize Generation Count (Perfect!)
     const [generationCount, setGenerationCount] = useState(() => {

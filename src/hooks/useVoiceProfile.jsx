@@ -35,22 +35,34 @@ export const useVoiceProfile = () => {
         }    
 
         try {
-            // Fixed the URL to the correct OpenAI API endpoint
-            const response = await axios.post('https://googleapis.com', 
+            // Using Google Gemini API endpoint
+            const response = await axios.post(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
                 {
-                    model: 'gemini-2.5-flash',
-                    messages: [
-                        { role: 'system', content: `You are an expert professional profile builder. The user will provide spoken text.Your job is to clean up filler words, organize skills professionally, and return a polished written profile.
-                        CRITICAL RULE: The final polished profile must be ${outputLanguageInstruction}. Do not include any meta-commentary, just the final profile text.` },
-                        { role: 'user', content: `Here are the skills I spoke: ${transcript}. Please format this into a polished profile.` }],
-                    temperature: 0.7,
+                    contents: [
+                        {
+                            role: 'user',
+                            parts: [
+                                {
+                                    text: `You are an expert professional profile builder. The user will provide spoken text. Your job is to clean up filler words, organize skills professionally, and return a polished written profile.
+                        CRITICAL RULE: The final polished profile must be ${outputLanguageInstruction}. Do not include any meta-commentary, just the final profile text.
+
+Here are the skills I spoke: ${transcript}. Please format this into a polished profile.`
+                                }
+                            ]
+                        }
+                    ],
+                    generationConfig: {
+                        temperature: 0.7,
+                    }
                 },
                 {
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`,}
-                }           );
-            setPolishedProfile(response.data.choices[0].message.content);
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            setPolishedProfile(response.data.candidates[0].content.parts[0].text);
             return true; //Return true to indicate successful profile generation
         } catch (err) {
             setError(err.response?.data?.error?.message || 'An error occurred while generating the profile.');
