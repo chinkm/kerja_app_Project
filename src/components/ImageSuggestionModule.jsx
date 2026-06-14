@@ -291,4 +291,3 @@ return (
   );
 }
 
-export default ImageSuggestionModule
