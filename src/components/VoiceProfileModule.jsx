@@ -40,9 +40,9 @@ export default function VoiceProfileModule() {
         if (generationCount >= MAX_FREE_GENERATIONS) return;
         
         // SECURITY ALERT: If the .env configuration is missing, stop early to avoid crashes
-        if (!apiKey) {
-            setError("Error: System Gemini API Key is missing. Check your local .env configuration file.");
-            return;
+        if (!apiKey || apiKey.length < 10) {
+            setError("Error: Invalid API Key. Check your local .env configuration file.");
+            return false;
         }
         
         const success = await generateProfile(apiKey, selectedLang.name);
