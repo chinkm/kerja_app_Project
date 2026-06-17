@@ -1,6 +1,7 @@
 // src/App.jsx
 import { useState } from 'react';
 import VoiceProfileModule from './components/VoiceProfileModule';
+import ImageSuggestionModule from './components/ImageSuggestionModule';
 
 function App() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -34,6 +35,18 @@ function App() {
                     >
                         🎤 Voice Profile Generator
                     </button>
+                    {/* ADD THIS NEW BUTTON FOR YOUR CAMERA DAMAGE MODULE */}
+                    <button 
+                        onClick={() => {
+                            setActiveModule('imageSuggestion');
+                            setIsMenuOpen(false); // Close menu after choosing
+                        }} 
+                        className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm font-medium text-gray-700 transition flex items-center gap-2"
+                    >
+                        🖼️ Image Suggestion Generator
+                    </button>
+
+
                     {/* You can add more modular dashboard project buttons here later */}
                 </div>
             )}
@@ -64,6 +77,28 @@ function App() {
                         <VoiceProfileModule />
                     </div>
                 )}
+
+                {/* Opens the Image Suggestion Function inside an isolated module window panel */}
+                {activeModule === 'imageSuggestion' && (
+                    <div className="relative animate-fade-in">
+                        {/* Close Window Banner Button */}
+                        <div className="max-w-2xl mx-auto flex justify-end mb-2">
+                            <button 
+                                onClick={() => setActiveModule(null)} 
+                                className="text-xs text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1 rounded border border-red-200 font-semibold"
+                            >
+                                ✕ Close Module Window
+                            </button>
+                        </div>
+                        
+                        {/* Mounts the Module Component code */}
+                        <ImageSuggestionModule />
+                    </div>
+                )}
+
+
+
+
             </main>
         </div>
     );
