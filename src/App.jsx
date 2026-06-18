@@ -42,14 +42,14 @@ function App() {
 </div>
 
                 {/* Search Bar Section */}
-                <div className="bg-white rounded-pill d-flex flex-nowrap align-items-center px-4 py-2 shadow-sm w-100" style={{ minHeight: '56px' }}>
+                <div className="bg-white rounded-full flex flex-nowrap items-center px-4 py-2 shadow-sm w-full" style={{ minHeight: '56px' }}>
                     <svg className="flex-shrink-0" style={{ width: '24px', height: '24px', color: '#5C85D6' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
-                    <div className="flex-grow-1 px-3">
-                        <input type="text" className="border-0 bg-transparent w-100 fs-5 text-dark m-0 p-0 shadow-none" placeholder="Search..." style={{ outline: 'none' }} />
+                    <div className="flex-grow px-3">
+                        <input type="text" className="border-0 bg-transparent w-full text-lg text-dark m-0 p-0 shadow-none" placeholder="Search..." style={{ outline: 'none' }} />
                     </div>
-                    <div className="d-flex flex-nowrap align-items-center gap-3 flex-shrink-0">
+                    <div className="flex flex-nowrap items-center gap-3 flex-shrink-0">
                         <svg style={{ width: '24px', height: '24px', color: '#5C85D6' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
                         </svg>
@@ -63,26 +63,29 @@ function App() {
 
             {/* Categories Section */}
             <div className="px-4 mt-4">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="flex items-center justify-between mb-4">
                     <h2 className="fw-bolder fs-4 mb-0" style={{ color: '#4E80E6', letterSpacing: '-0.02em' }}>Search by categories</h2>
-                    <button className="btn btn-link text-decoration-none d-flex align-items-center gap-1 fw-bold p-0" style={{ color: '#4E80E6', fontSize: '15px' }}>
-                        View all 
-                        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button className="btn btn-link text-decoration-none inline-flex items-center gap-1 font-bold p-0" style={{ color: '#4E80E6', fontSize: '15px' }}>
+                        <span>View all</span>
+                        <svg className="flex-shrink-0 ms-1" width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <circle cx="12" cy="12" r="9" strokeWidth="2"></circle>
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 8l4 4-4 4"></path>
                         </svg>
                     </button>
                 </div>
-                <div className="row g-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {[1, 2, 3, 4, 5, 6].map((item) => (
-                        <div key={item} className="col-4">
-                            <div className="p-3 d-flex flex-column align-items-start border-0" style={{ backgroundColor: '#EAF2F9', borderRadius: '16px', cursor: 'pointer', minHeight: '110px' }}>
+                        <div key={item} className="w-full">
+                            <div className="p-3 flex flex-col items-center md:items-start border-0" style={{ backgroundColor: '#EAF2F9', borderRadius: '16px', cursor: 'pointer', minHeight: '110px' }}>
                                 <svg className="mb-3" width="24" height="24" fill="none" stroke="#7A848F" viewBox="0 0 24 24">
                                     <circle cx="12" cy="12" r="10" strokeWidth="2"></circle>
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4"></path>
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 16h.01"></path>
                                 </svg>
-                                <span className="fw-bolder" style={{ fontSize: '14px', lineHeight: '1.2', color: '#2C3E50' }}>Home<br />Maintenance</span>
+                                <div className="font-semibold w-full text-center md:text-left" style={{ fontSize: '14px', lineHeight: '1.1', color: '#2C3E50', marginTop: '0' }}>
+                                    <div>Home</div>
+                                    <div>Maintenance</div>
+                                </div>
                             </div>
                         </div>
                     ))}
