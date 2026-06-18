@@ -140,3 +140,5 @@ const MOCK_CONTRACTORS = [
     certification: "Pukonsa License"
   }
 ];
+
+export default MOCK_CONTRACTORS;
