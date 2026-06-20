@@ -20,7 +20,7 @@ export default function VoiceProfileModule() {
         return storedCount ? parseInt(storedCount, 10) : 0;
     });
     // const [showRateLimitWarning, setShowRateLimitWarning] = useState(false);
-    const MAX_FREE_GENERATIONS = 3; // Limit for free users
+    const MAX_FREE_GENERATIONS = 10; // Limit for free users
     const { startListening, stopListening, generateProfile, listening, transcript, isProcessing, polishedProfile, error, 
     setError,  // Added to manually trigger limit errors if needed
     browserSupportsSpeechRecognition, resetTranscript } = useVoiceProfile();

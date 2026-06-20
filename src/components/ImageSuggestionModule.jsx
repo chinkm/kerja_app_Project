@@ -23,6 +23,10 @@ export default function ImageSuggestionModule() {
   const [selectedContractor, setSelectedContractor] = useState(null);
   const [bookingStep, setBookingStep] = useState(0); // 0 = Idle, 1 = Confirming, 2 = Dispatched Success
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> camera-capture-suggest-contractor-project
   useEffect(() => {
     startCamera();
     return () => stopCamera();
@@ -282,6 +286,10 @@ return (
         )}
       </div>
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> camera-capture-suggest-contractor-project
         {/* Runtime Exception Reporting Bar */}
         {apiError && (
           <div className="p-4 bg-red-500/10 border-t border-red-500/20 text-red-400 text-xs flex items-start gap-2.5">
