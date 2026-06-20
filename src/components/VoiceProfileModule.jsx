@@ -6,7 +6,7 @@ const SUPPORTED_LANGUAGES = [
     { name: 'Malay (Malaysia)', code: 'ms-MY' },
     { name: 'Chinese (Simplified)', code: 'zh-CN' },
     // Uses ms-MY as acoustic model for better recognition of Sabahan dialects spoken phonetically
-    { name: 'Sabahan Dialects (Kadazan/Dusun - Phonetic)', code: 'ms-MY' },
+    //{ name: 'Sabahan Dialects (Kadazan/Dusun - Phonetic)', code: 'ms-MY' },
 ];
 
 
