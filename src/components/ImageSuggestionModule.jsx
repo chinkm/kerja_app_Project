@@ -23,7 +23,6 @@ export default function ImageSuggestionModule() {
   const [selectedContractor, setSelectedContractor] = useState(null);
   const [bookingStep, setBookingStep] = useState(0); // 0 = Idle, 1 = Confirming, 2 = Dispatched Success
 
-
   useEffect(() => {
     startCamera();
     return () => stopCamera();
@@ -85,12 +84,43 @@ export default function ImageSuggestionModule() {
     analyzeImageWithGemini(imageData);
   };
 
+  // ADD FILE PROCESSING LOGIC
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    //Enforce that only valid image content streams are accepted
+    if (!file.type.startsWith('image/')) {
+      setApiError("Invalid file type. Please select a valid photo.");
+      return;
+    }
+    setApiError(null);
+    setAnalysisResult(null);
+    setMatchedContractors([]);
+    stopCamera();
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Data = event.target?.result;
+      setCapturedImage(base64Data);
+    
+    // Submit the extracted based64 string directly to Gemini pipeline
+    analyzeImageWithGemini(base64Data);
+  };
+
+  reader.onerror = () => {
+    setApiError("Failed to read file. Please try again.");
+  };
+
+  reader.readAsDataURL(file);
+  };
+
   // Convert HTML Canvas base64 data to compliant Gemini API Part Format
   const makeBase64PartForGemini = (base64DataUrl) => {
     const base64Content = base64DataUrl.split(',')[1];
     return {
       inlineData: {
-        data: base64Content[1],
+        data: base64Content,
         mimeType: "image/jpeg"
       },
     };
@@ -201,7 +231,19 @@ return (
         </div>
 
         {/* Localized Control Bay */}
-        <div className="p-4 bg-slate-800 border-t border-slate-700/60 flex justify-center">
+        <div className="p-4 bg-slate-800 border-t border-slate-700/60 flex flex-col items-center gap-3">
+        <div className="flex items-center justify-center gap-4">
+
+          {/* Hidden HTML input mechanism pointing to mobile local camera rolls */}
+
+          <input 
+            type="file"
+            id="mobile-file-fallback"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+
           {!capturedImage && !cameraError && (
             <button 
               onClick={capturePhoto}
@@ -219,7 +261,26 @@ return (
               <RefreshCw className="w-4 h-4" /> Clear & Reset Frame
             </button>
           )}
+          {/* Accessibility label button mapping pointer clicks directly to the hidden uploader context */}
+          {!capturedImage && (
+            <label 
+              htmlFor="mobile-file-fallback"
+              className="flex items-center justify-center p-3.5 bg-slate-700 hover:bg-slate-600 text-teal-400 rounded-full border border-slate-600 cursor-pointer active:scale-95 transition shadow-md"
+              title="Upload From Photo Library"
+            >
+              <svg xmlns="http://w3.org" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </label>
+          )}
+          
         </div>
+          {!capturedImage && (
+          <p className="text-[10px] text-slate-500 italic">
+            Tip: Press camera for real-time capture, or folder icon to upload from album files.
+          </p>
+        )}
+      </div>
 
         {/* Runtime Exception Reporting Bar */}
         {apiError && (
