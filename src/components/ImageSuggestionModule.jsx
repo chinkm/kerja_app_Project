@@ -6,6 +6,15 @@ import MOCK_CONTRACTORS from '../data/mockData';
 export default function ImageSuggestionModule() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+
+  // Add Rate-Limited API Call Variables
+  const API_CALLS_PER_MINUTE = 60; //Reference only
+  const lastCallTime = useRef(0);
+
+  // Usage Limiting Variables
+  const API_CALLS_PER_DAY = 5;
+  const lastCallDate = useRef(null);
+  const callCount = useRef(0);
   
   const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
@@ -84,28 +93,77 @@ export default function ImageSuggestionModule() {
     analyzeImageWithGemini(imageData);
   };
 
+  // Compress any base64 image string to a smaller size before sending to Gemini
+  const compressImage = (base64Str, maxWidth = 800) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        // Calculate proportional scale dimensions
+        const width = img.width;
+        const height = img.height;
+        if (width > maxWidth) {
+          height =Math.round((height * maxWidth) / width);
+          width = maxWidth;
+
+        }
+        // Render to virtual scratchpad canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Export at 75% structural optimization quality
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+        };
+        // Add error handling
+        img.onerror = () => {
+          reject(new Error('Failed to load image for compression.'));
+        };
+      });
+    };
+  
+
   // ADD FILE PROCESSING LOGIC
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     //Enforce that only valid image content streams are accepted
-    if (!file.type.startsWith('image/')) {
-      setApiError("Invalid file type. Please select a valid photo.");
+    //if (!file.type.startsWith('image/')) {
+    //  setApiError("Invalid file type. Please select a valid photo.");
+    //  return;
+    // }
+
+    // Add file size validation 
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      setApiError("File size exceeds the maximum limit of 5MB. Please select a smaller file.");
       return;
     }
+
+    // Add file type validation
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setApiError("Invalid file type. Please select a JPEG, PNG, or GIF file.");
+      return;
+    }
+
     setApiError(null);
     setAnalysisResult(null);
     setMatchedContractors([]);
     stopCamera();
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Data = event.target?.result;
-      setCapturedImage(base64Data);
+    reader.onload = async (event) => {
+      const rawBase64 = event.target?.result;
+      // compress the data before storage or transit
+      const compressedBase64 = await compressImage(rawBase64);
+      setCapturedImage(compressedBase64);
     
     // Submit the extracted based64 string directly to Gemini pipeline
-    analyzeImageWithGemini(base64Data);
+    analyzeImageWithGemini(compressedBase64);
   };
 
   reader.onerror = () => {
@@ -125,7 +183,28 @@ export default function ImageSuggestionModule() {
       },
     };
   };
+
+const makeApiCallWithRateLimit = async (apiCallFunction) => {
+  const now= Date.now();
+  const timeSinceLastCall = now - lastCallTime.current;
+
+  if (timeSinceLastCall < 1000) {
+    setApiError("Please wait before making another request.");
+    return null;
+  }
+  lastCallTime.current = now;
+
+  try {
+    return await apiCallFunction();
+  } catch (error) {
+    console.error("API call failed:", error);
+    throw error;
+  }
+};
+
+
 const analyzeImageWithGemini = async (base64Image) => {
+  const result = await makeApiCallWithRateLimit(async () => {
   setIsAnalyzing(true);
   setApiError(null);
   
@@ -181,9 +260,13 @@ const analyzeImageWithGemini = async (base64Image) => {
     console.error("Gemini API Interruption:", err);
     setApiError("Failed to interpret image data through the new Google GenAI SDK pipeline.");
   } finally {
-    setIsAnalyzing(false);
+    setIsAnalyzing(false);}
+  });
+  if (result === null) {
+    return;
   }
 };
+
 
 return (
 
