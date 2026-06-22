@@ -12,7 +12,7 @@ export default function ImageSuggestionModule() {
   const lastCallTime = useRef(0);
 
   // Usage Limiting Variables
-  const API_CALLS_PER_DAY = 5;
+  const API_CALLS_PER_DAY = 6;
   const lastCallDate = useRef(null);
   const callCount = useRef(0);
   
@@ -36,6 +36,43 @@ export default function ImageSuggestionModule() {
     startCamera();
     return () => stopCamera();
   }, []);
+
+/**
+ * Check if user has exceeded API call limit
+ * @returns {boolean} - true if limit exceeded, false otherwise
+ */
+  const checkUsageLimit = () => {
+    const now = new Date();
+    const today = now.toDateString();
+
+    // Check if it is a new day
+    if (lastCallDate.current !== today) {
+      lastCallDate.current = today;
+      callCount.current = 0;
+    }
+
+    // Check if user has exceeded API call limit
+    if (callCount.current >= API_CALLS_PER_DAY) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const resetTime = tomorrow.getHours() * 60 + tomorrow.getMinutes();
+      const remainingTime = resetTime - (now.getHours() * 60 + now.getMinutes());
+      if (callCount.current >= 4 && callCount.current < 6) setApiError("Free call limit to be exceeded. 6 AI call is allowed per day.");
+         
+      // Set API error message
+      setApiError(`Free call limit exceeded. Please try again after ${resetTime} :00.`);
+      return true;
+    }
+
+    return false;
+};
+
+/**
+ * Increment usage count
+ */
+  const incrementUsageCount = () => {
+    callCount.current++;  
+  };
 
   const startCamera = async () => {
     setCameraError(null);
@@ -203,7 +240,19 @@ const makeApiCallWithRateLimit = async (apiCallFunction) => {
 };
 
 
+
+
+
 const analyzeImageWithGemini = async (base64Image) => {
+
+  // Check usage linit first
+  if (checkUsageLimit()) {
+    return;
+  }
+
+  // Increment usage count
+  incrementUsageCount();
+
   const result = await makeApiCallWithRateLimit(async () => {
   setIsAnalyzing(true);
   setApiError(null);
