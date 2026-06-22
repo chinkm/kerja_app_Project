@@ -280,7 +280,7 @@ const analyzeImageWithGemini = async (base64Image) => {
     const promptText = `
       Analyze this damage photo. Return a JSON object with this schema:
       {
-        "type": "pipeline" or "electrical" or "structural" or "gardening" or "painter" or "pest_control" or "roofing",
+        "type": "pipeline" or "electrical" or "structural" or "gardening" or "painter" or "pest_control" or "roofing" or "locksmith" or "computer_repair" or "aluminium_glass" or "tuition" or "air_conditioning" or "security" or "welding" or "appliance_repair" or "interior_design" or "handyman" or "water_filter" or "solar" or "waste_management" or "av_installation" or "automation" or "catering" or "pet_care" or "fitness" or "music_tuition",
         "severity": "Low Severity" or "Moderate Severity" or "High Severity" or "Critical Hazard",
         "issue": "Brief description of the diagnosed issue",
         "recommendation": "Crucial pre-arrival action instructions for the resident to stay safe"
