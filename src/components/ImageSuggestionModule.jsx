@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, use } from 'react';
 import { Camera, RefreshCw, CheckCircle2, ShieldCheck, MapPin, Phone, AlertTriangle, Hammer, KeySquare } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import MOCK_CONTRACTORS from '../data/mockData';
@@ -12,14 +12,52 @@ export default function ImageSuggestionModule() {
   const lastCallTime = useRef(0);
 
   // Usage Limiting Variables
-  const API_CALLS_PER_DAY = 6;
-  const lastCallDate = useRef(null);
-  const callCount = useRef(0);
-  
+  const API_CALLS_PER_DAY = 4;
+
+  const lastCallDate = useRef(() => {
+    const saved = localStorage.getItem('dailyUsage');
+    if (saved) {
+      try {
+        const { date } = JSON.parse(saved);
+        return date;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  })();
+
+
+
+  const callCount = useRef(() => {
+    const saved = localStorage.getItem('dailyUsage');
+    if (saved) {
+      try {
+        const { count, date } = JSON.parse(saved);
+        const today = new Date().toDateString();
+        // Only use saved count if it's from today
+        if (date === today) {
+          return count;
+        }
+      } catch (e) {
+        return 0;
+      }
+    }
+    return 0;
+  })();
+
+  const resetTimeRef = useRef(null);
+
+  //24-hour disable state
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  const [disabledUntil, setDisabledUntil] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState('');
+
+
   const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
   const [cameraError, setCameraError] = useState(null);
-  
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [matchedContractors, setMatchedContractors] = useState([]);
@@ -32,15 +70,127 @@ export default function ImageSuggestionModule() {
   const [selectedContractor, setSelectedContractor] = useState(null);
   const [bookingStep, setBookingStep] = useState(0); // 0 = Idle, 1 = Confirming, 2 = Dispatched Success
 
+  // EFFECT 0: Load and persist usage data
+  useEffect(() => {
+    // Load usage data on mount
+    const saved = localStorage.getItem('dailyUsage');
+    if (saved) {
+      try {
+        const { count, date } = JSON.parse(saved);
+        const today = new Date().toDateString();
+
+        // Only use saved count if it's from today
+        if (date === today) {
+          callCount.current = count;
+          lastCallDate.current = date;
+        }else{
+          // New day - reset count
+          callCount.current = 0;
+          lastCallDate.current = today;
+          localStorage.removeItem('dailyUsage');
+        }
+      } catch (e) {
+        callCount.current = 0;
+        lastCallDate.current = new Date().toDateString();
+      }
+        }else{
+          // First time - initialize
+          lastCallDate.current = new Date().toDateString();
+          callCount.current = 0; 
+        }
+      }, []); 
+
+      const [saveTrigger, setSaveTrigger] = useState(0);
+
+      useEffect(() => {
+        if (lastCallDate.current){
+          localStorage.setItem('dailyUsage', JSON.stringify({ count: callCount.current, date: lastCallDate.current })); 
+        }
+      }, [saveTrigger]);
+
+  
+  //EFFECT 1: Initialize camera on mount
   useEffect(() => {
     startCamera();
     return () => stopCamera();
   }, []);
 
-/**
- * Check if user has exceeded API call limit
- * @returns {boolean} - true if limit exceeded, false otherwise
- */
+  //EFFECT 2: Load disabled state from localStorage on mount
+  useEffect(() => {
+    const savedState = localStorage.getItem('buttonDisabledState');
+    if (savedState) {
+      const { disabledUntil } = JSON.parse(savedState);
+      if (disabledUntil && Date.now() < disabledUntil) {
+        setIsButtonDisabled(true);
+        setDisabledUntil(disabledUntil);
+      } else {
+        // Clear expired state
+        localStorage.removeItem('buttonDisabledState');
+      }
+    }
+  }, []);
+
+  // EFFECT 3: Auto-enable button after 24 hours with countdown
+  useEffect(() => {
+    if (!disabledUntil) {
+      setTimeRemaining('');
+      return;
+    }
+    const updateTimer = () => {
+      const now = Date.now();
+      const remaining = disabledUntil - now;
+
+      if (remaining <= 0) {
+        // 24 hours have passed, enable the button
+        setIsButtonDisabled(false);
+        setDisabledUntil(null);
+        setTimeRemaining('');
+        localStorage.removeItem('buttonDisabledState');
+
+        // Also reset daily counter after 24 hours
+        callCount.current = 0;
+        lastCallDate.current = new Date().toDateString();
+        localStorage.removeItem('dailyUsage');
+        setSaveTrigger(prevTrigger => prevTrigger + 1); //Trigger save
+        return;
+      }
+
+      // Update countdown display
+      const hours = Math.floor(remaining / (1000 * 60 * 60));
+      const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+      setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
+    };
+
+    // Run immediately
+    updateTimer();
+
+    // Set up interval to check every second
+    const interval = setInterval(updateTimer, 1000);
+
+    // Cleanup interval on unmount or when disabledUntil changes
+    return () => clearInterval(interval);
+  }, [disabledUntil]);
+
+  // Helper to check if button is disabled
+  const isButtonClickable = () => {
+    if (isButtonDisabled) return false;
+    if (callCount.current >= API_CALLS_PER_DAY) return false;
+    return true;
+  };
+
+  // Function to disable button for 24 hours
+  const disableButtonFor24Hours = () => {
+    const until = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
+    setIsButtonDisabled(true);
+    setDisabledUntil(until);
+    localStorage.setItem('buttonDisabledState', JSON.stringify({ disabledUntil: until }));
+  };
+
+  /**
+  * Check if user has exceeded API call limit
+  * @returns {boolean} - true if limit exceeded, false otherwise
+  */
   const checkUsageLimit = () => {
     const now = new Date();
     const today = now.toDateString();
@@ -49,29 +199,39 @@ export default function ImageSuggestionModule() {
     if (lastCallDate.current !== today) {
       lastCallDate.current = today;
       callCount.current = 0;
-    }
+      // Save the rest
+      localStorage.setItem('dailyUsage', JSON.stringify({ count: callCount.current, date: lastCallDate.current }));
+      }
 
     // Check if user has exceeded API call limit
     if (callCount.current >= API_CALLS_PER_DAY) {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      const resetTime = tomorrow.getHours() * 60 + tomorrow.getMinutes();
-      const remainingTime = resetTime - (now.getHours() * 60 + now.getMinutes());
-      if (callCount.current >= 4 && callCount.current < 6) setApiError("Free call limit to be exceeded. 6 AI call is allowed per day.");
-         
+      const resetTime = tomorrow.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric' });
+
+      resetTimeRef.current = resetTime;
+
+      // Disable button for 24 hours when limit is reached
+      disableButtonFor24Hours();
+
+
       // Set API error message
-      setApiError(`Free call limit exceeded. Please try again after ${resetTime} :00.`);
+      setApiError(`Free call limit exceeded. Please try again after ${tomorrow.toLocaleDateString('en-US')} at ${resetTime}.`);
       return true;
     }
 
-    return false;
-};
+    if (callCount.current >= 2 && callCount.current < 4) { setApiError("Free call limit to be exceeded. Free 4 call is allowed per day."); }
 
-/**
- * Increment usage count
- */
+    return false;
+  };
+
+  /**
+   * Increment usage count
+   */
   const incrementUsageCount = () => {
-    callCount.current++;  
+    callCount.current++;
+    // Trigger save to localStorage
+    setSaveTrigger(prevTrigger => prevTrigger + 1);
   };
 
   const startCamera = async () => {
@@ -83,7 +243,7 @@ export default function ImageSuggestionModule() {
     setSearchQuery("");
     setSelectedContractor(null);
     setBookingStep(0);
-    
+
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } }, // Prefers rear mobile camera
@@ -106,6 +266,13 @@ export default function ImageSuggestionModule() {
   };
 
   const capturePhoto = () => {
+
+    // Check if button is disabled
+    if (!isButtonClickable()) {
+      setApiError(`Free call limit exceeded. Please try again after ${resetTimeRef.current}.`);
+      return;
+    }
+
     if (!videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
@@ -115,14 +282,14 @@ export default function ImageSuggestionModule() {
     // Match canvas dimensions to video feed source
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    
+
     // Draw current frame to canvas
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
+
     // Extract base64 image data string
     const imageData = canvas.toDataURL('image/jpeg');
     setCapturedImage(imageData);
-    
+
     // Shut down camera feed to save mobile battery
     stopCamera();
 
@@ -140,7 +307,7 @@ export default function ImageSuggestionModule() {
         const width = img.width;
         const height = img.height;
         if (width > maxWidth) {
-          height =Math.round((height * maxWidth) / width);
+          height = Math.round((height * maxWidth) / width);
           width = maxWidth;
 
         }
@@ -153,25 +320,25 @@ export default function ImageSuggestionModule() {
 
         // Export at 75% structural optimization quality
         resolve(canvas.toDataURL('image/jpeg', 0.75));
-        };
-        // Add error handling
-        img.onerror = () => {
-          reject(new Error('Failed to load image for compression.'));
-        };
-      });
-    };
-  
+      };
+      // Add error handling
+      img.onerror = () => {
+        reject(new Error('Failed to load image for compression.'));
+      };
+    });
+  };
+
 
   // ADD FILE PROCESSING LOGIC
   const handleFileUpload = async (e) => {
+    // Check if button is disabled
+    if (!isButtonClickable()) {
+      setApiError(`Free call limit exceeded. Please try again after ${resetTimeRef.current}.`);
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (!file) return;
-
-    //Enforce that only valid image content streams are accepted
-    //if (!file.type.startsWith('image/')) {
-    //  setApiError("Invalid file type. Please select a valid photo.");
-    //  return;
-    // }
 
     // Add file size validation 
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
@@ -198,16 +365,16 @@ export default function ImageSuggestionModule() {
       // compress the data before storage or transit
       const compressedBase64 = await compressImage(rawBase64);
       setCapturedImage(compressedBase64);
-    
-    // Submit the extracted based64 string directly to Gemini pipeline
-    analyzeImageWithGemini(compressedBase64);
-  };
 
-  reader.onerror = () => {
-    setApiError("Failed to read file. Please try again.");
-  };
+      // Submit the extracted based64 string directly to Gemini pipeline
+      analyzeImageWithGemini(compressedBase64);
+    };
 
-  reader.readAsDataURL(file);
+    reader.onerror = () => {
+      setApiError("Failed to read file. Please try again.");
+    };
+
+    reader.readAsDataURL(file);
   };
 
   // Convert HTML Canvas base64 data to compliant Gemini API Part Format
@@ -221,103 +388,102 @@ export default function ImageSuggestionModule() {
     };
   };
 
-const makeApiCallWithRateLimit = async (apiCallFunction) => {
-  const now= Date.now();
-  const timeSinceLastCall = now - lastCallTime.current;
+  const makeApiCallWithRateLimit = async (apiCallFunction) => {
 
-  if (timeSinceLastCall < 1000) {
-    setApiError("Please wait before making another request.");
-    return null;
-  }
-  lastCallTime.current = now;
+    // Check if button is disabled
+    if (!isButtonClickable()) {
+      setApiError(`Free call limit exceeded. Please try again after ${resetTimeRef.current} .`);
+      return null;
+    }
 
-  try {
-    return await apiCallFunction();
-  } catch (error) {
-    console.error("API call failed:", error);
-    throw error;
-  }
-};
+    const now = Date.now();
+    const timeSinceLastCall = now - lastCallTime.current;
 
+    if (timeSinceLastCall < 1000) {
+      setApiError("Please wait before making another request.");
+      return null;
+    }
+    lastCallTime.current = now;
 
+    try {
+      return await apiCallFunction();
+    } catch (error) {
+      console.error("API call failed:", error);
+      throw error;
+    }
+  };
 
+  const analyzeImageWithGemini = async (base64Image) => {
 
+    const result = await makeApiCallWithRateLimit(async () => {
+      setIsAnalyzing(true);
+      setApiError(null);
 
-const analyzeImageWithGemini = async (base64Image) => {
-
-  // Check usage linit first
-  if (checkUsageLimit()) {
-    return;
-  }
-
-  // Increment usage count
-  incrementUsageCount();
-
-  const result = await makeApiCallWithRateLimit(async () => {
-  setIsAnalyzing(true);
-  setApiError(null);
-  
-  const apiKey = import.meta.env.VITE_GOOGLE_GENAI_API_KEY;
-  if (!apiKey) {
-    setApiError("VITE_GOOGLE_GENAI_API_KEY missing in .env file.");
-    setIsAnalyzing(false);
-    return;
-  }
-
-  try {
-    // 1. Pass the API Key config directly to the imported google class object
-    const ai = new GoogleGenAI({ apiKey: apiKey });
-
-    // 2. Prepare the base64 content part mapping rule
-    const base64Content = base64Image.split(',')[1];
-    const imagePart = {
-      inlineData: {
-        data: base64Content,
-        mimeType: "image/jpeg"
+      const apiKey = import.meta.env.VITE_GOOGLE_GENAI_API_KEY;
+      if (!apiKey) {
+        setApiError("VITE_GOOGLE_GENAI_API_KEY missing in .env file.");
+        setIsAnalyzing(false);
+        return;
       }
-    };
 
-    const promptText = `
+      try {
+        // 1. Pass the API Key config directly to the imported google class object
+        const ai = new GoogleGenAI({ apiKey: apiKey });
+
+        // 2. Prepare the base64 content part mapping rule
+        const base64Content = base64Image.split(',')[1];
+        const imagePart = {
+          inlineData: {
+            data: base64Content,
+            mimeType: "image/jpeg"
+          }
+        };
+
+        const promptText = `
       Analyze this damage photo. Return a JSON object with this schema:
       {
         "type": "pipeline" or "electrical" or "structural" or "gardening" or "painter" or "pest_control" or "roofing" or "locksmith" or "computer_repair" or "aluminium_glass" or "tuition" or "air_conditioning" or "security" or "welding" or "appliance_repair" or "interior_design" or "handyman" or "water_filter" or "solar" or "waste_management" or "av_installation" or "automation" or "catering" or "pet_care" or "fitness" or "music_tuition",
         "severity": "Low Severity" or "Moderate Severity" or "High Severity" or "Critical Hazard",
         "issue": "Brief description of the diagnosed issue",
         "recommendation": "Crucial pre-arrival action instructions for the resident to stay safe"
-      }
-    `;
+      }`;
 
-    // 3. call ai.models.generateContent instead of the deprecated model class instance
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash', // Uses the latest recommended stable Gemini flash engine
-      contents: [promptText, imagePart],
-      config: {
-        responseMimeType: "application/json" // Tells the API directly to return JSON structure
+        // 3. call ai.models.generateContent instead of the deprecated model class instance
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash', // Uses the latest recommended stable Gemini flash engine
+          contents: [promptText, imagePart],
+          config: {
+            responseMimeType: "application/json" // Tells the API directly to return JSON structure
+          }
+        });
+
+        const parsedAnalysis = JSON.parse(response.text);
+
+        const dynamicFiltering = MOCK_CONTRACTORS.filter(
+          contractor => contractor.specialty.toLowerCase() === parsedAnalysis.type.toLowerCase()
+        );
+
+        setAnalysisResult(parsedAnalysis);
+        setMatchedContractors(dynamicFiltering);
+
+
+        // Increment usage count after successful analysis
+        incrementUsageCount();
+
+      } catch (err) {
+        console.error("Gemini API Interruption:", err);
+        setApiError("Failed to interpret image data through the new Google GenAI SDK pipeline.");
+      } finally {
+        setIsAnalyzing(false);
       }
     });
-
-    const parsedAnalysis = JSON.parse(response.text);
-    
-    const dynamicFiltering = MOCK_CONTRACTORS.filter(
-      contractor => contractor.specialty.toLowerCase() === parsedAnalysis.type.toLowerCase()
-    );
-
-    setAnalysisResult(parsedAnalysis);
-    setMatchedContractors(dynamicFiltering);
-
-  } catch (err) {
-    console.error("Gemini API Interruption:", err);
-    setApiError("Failed to interpret image data through the new Google GenAI SDK pipeline.");
-  } finally {
-    setIsAnalyzing(false);}
-  });
-  if (result === null) {
-    return;
-  }
-};
+    if (result === null) {
+      return;
+    }
+  };
 
 
-return (
+  return (
 
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col items-center p-4 antialiased">
       <header className="w-full max-w-md my-4 text-center">
@@ -340,7 +506,7 @@ return (
             <img src={capturedImage} alt="Captured asset state" className="w-full h-full object-cover" />
           )}
 
-{cameraError && (
+          {cameraError && (
             <div className="p-6 text-center text-sm text-red-400 flex flex-col items-center gap-2">
               <AlertTriangle className="w-8 h-8 text-red-500" />
               <p>{cameraError}</p>
@@ -364,55 +530,75 @@ return (
 
         {/* Localized Control Bay */}
         <div className="p-4 bg-slate-800 border-t border-slate-700/60 flex flex-col items-center gap-3">
-        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4">
 
-          {/* Hidden HTML input mechanism pointing to mobile local camera rolls */}
+            {/* Hidden HTML input mechanism pointing to mobile local camera rolls */}
 
-          <input 
-            type="file"
-            id="mobile-file-fallback"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
+            <input
+              type="file"
+              id="mobile-file-fallback"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
 
-          {!capturedImage && !cameraError && (
-            <button 
-              onClick={capturePhoto}
-              className="w-16 h-16 rounded-full bg-white border-4 border-slate-700 active:scale-95 transition-all shadow-lg flex items-center justify-center group"
-            >
-              <Camera className="w-7 h-7 text-slate-900 group-hover:scale-110 transition-transform" />
-            </button>
-          )}
+            {!capturedImage && !cameraError && (
+              <button
+                onClick={capturePhoto}
+                disabled={!isButtonClickable()}
+                className={`w-16 h-16 rounded-full bg-white border-4 border-slate-700 active:scale-95 transition-all shadow-lg flex items-center justify-center group ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}>
 
-          {capturedImage && !isAnalyzing && (
-            <button 
-              onClick={startCamera}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-medium text-sm transition active:scale-95"
-            >
-              <RefreshCw className="w-4 h-4" /> Clear & Reset Frame
-            </button>
-          )}
-          {/* Accessibility label button mapping pointer clicks directly to the hidden uploader context */}
+                <Camera className="w-7 h-7 text-slate-900 group-hover:scale-110 transition-transform" />
+              </button>
+            )}
+
+            {capturedImage && !isAnalyzing && (
+              <button
+                onClick={startCamera}
+                disabled={!isButtonClickable()}
+                className={`flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-medium text-sm transition active:scale-95 ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}>
+
+                <RefreshCw className="w-4 h-4" /> Clear & Reset Frame
+              </button>
+            )}
+            {/* Accessibility label button mapping pointer clicks directly to the hidden uploader context */}
+            {!capturedImage && (
+              <label
+                htmlFor="mobile-file-fallback"
+                className={`flex items-center justify-center p-3.5 bg-slate-700 hover:bg-slate-600 text-teal-400 rounded-full border border-slate-600 cursor-pointer active:scale-95 transition shadow-md ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Upload From Photo Library" style={{ pointerEvents: isButtonClickable() ? 'auto' : 'none' }}>
+
+                <svg xmlns="http://w3.org" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2" />
+                </svg>
+              </label>
+            )}
+
+          </div>
           {!capturedImage && (
-            <label 
-              htmlFor="mobile-file-fallback"
-              className="flex items-center justify-center p-3.5 bg-slate-700 hover:bg-slate-600 text-teal-400 rounded-full border border-slate-600 cursor-pointer active:scale-95 transition shadow-md"
-              title="Upload From Photo Library"
-            >
-              <svg xmlns="http://w3.org" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </label>
-          )}
-          
-        </div>
-          {!capturedImage && (
-          <p className="text-[10px] text-slate-500 italic">
-            Tip: Press camera for real-time capture, or folder icon to upload from album files.
+            <p className="text-[10px] text-slate-500 italic">
+              Tip: Press camera for real-time capture, or folder icon to upload from album files.
+            </p>)}
+
+
+          {/* Usage Limit Display */}
+          <p className="text-[13px] text-sm">
+            Free Daily Usage: <span className="text-white font-bold">{callCount.current}</span> / {API_CALLS_PER_DAY}
           </p>
-        )}
-      </div>
+
+          {/* Display 24-hour countdown if disabled */}
+          {!isButtonDisabled && (
+            <p className="text-amber-100 text-sm font-medium">
+              ⌛ Button disabled for : {timeRemaining}
+            </p>
+          )}
+
+          {callCount.current >= API_CALLS_PER_DAY && (
+            <span className="text-red-400 text-sm">
+              Resets at {resetTimeRef.current || '00:00'}
+            </span>)}
+
+        </div>
 
         {/* Runtime Exception Reporting Bar */}
         {apiError && (
@@ -424,12 +610,12 @@ return (
           </div>
         )}
 
-        
+
 
         {/* Production AI Analytics Interface Card */}
         {analysisResult && !isAnalyzing && (
           <div className="p-5 border-t border-slate-700/60 bg-slate-850 space-y-5 animate-fadeIn">
-            
+
             <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/40">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -452,7 +638,7 @@ return (
               <h4 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Matched Specialized Contractors ({matchedContractors.length})
               </h4>
-              
+
               {matchedContractors.length > 0 ? (
                 matchedContractors.map((contractor) => (
                   <div key={contractor.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700/40 hover:border-slate-600 transition flex items-center justify-between group">
@@ -480,6 +666,8 @@ return (
           </div>
         )}
       </main>
+
+
     </div>
   );
 }
