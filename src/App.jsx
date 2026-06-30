@@ -2,8 +2,9 @@
 import { useState } from 'react';
 import VoiceProfileModule from './components/VoiceProfileModule';
 import ImageSuggestionModule from './components/ImageSuggestionModule';
-
-function App() {
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import ChatComponent from './components/ChatComponent';
+function AppContent() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [activeModule, setActiveModule] = useState(null); // Tracks open modules
 
@@ -102,6 +103,20 @@ function App() {
             </main>
         </div>
     );
+}
+
+// ✅ Main App with Router at the top level
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Main app route */}
+        <Route path="/" element={<AppContent />} />
+        {/* Chat route - renders independently */}
+        <Route path="/chat/:contractorId" element={<ChatComponent />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App;

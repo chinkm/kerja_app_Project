@@ -1,16 +1,25 @@
 // component/chattingModule.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, ArrowLeft, User, Phone, MapPin } from 'lucide-react';
-
-const ChatComponent = ({ contractor, onBack }) => {
+import { useParams, useNavigate } from 'react-router-dom';
+import MOCK_CONTRACTORS from '../data/mockData';
+const ChatComponent = () => {
+    const { contractorId } = useParams();
+    const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const messagesEndRef = useRef(null);
-    const chatContainerRef = useRef(null);
+    // find the contractor by ID
+    const contractor = MOCK_CONTRACTORS.find(c => c.id === parseInt(contractorId));
 
     // Initial greeting message
     useEffect(() => {
+        if(!contractor) {
+          navigate('/'); // Redirect to home page if contractor not found
+          return;
+        }
+
         setMessages([
             { 
                 id:1,
@@ -19,7 +28,7 @@ const ChatComponent = ({ contractor, onBack }) => {
                 timestamp: new Date().toISOString()
                 
             }
-        ]);},[contractor]);
+        ]);},[contractor, navigate]);
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
@@ -73,12 +82,20 @@ const ChatComponent = ({ contractor, onBack }) => {
             }
         };
     
-        return (
-      <div className="flex flex-col h-full bg-slate-900">
+if (!contractor) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <p className="text-white">Contractor not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       {/* Chat Header */}
       <div className="bg-slate-800 border-b border-slate-700 p-4 flex items-center gap-3">
         <button
-          onClick={onBack}
+          onClick={() => navigate('/')}
           className="p-2 hover:bg-slate-700 rounded-lg transition"
         >
           <ArrowLeft className="w-5 h-5 text-slate-400" />
@@ -90,11 +107,6 @@ const ChatComponent = ({ contractor, onBack }) => {
               <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
               Online
             </span>
-            <span>•</span>
-            <span className="flex items-center gap-1">
-              <Phone className="w-3 h-3" />
-              {contractor.phone}
-            </span>
           </div>
         </div>
         <div className="text-xs text-slate-500 px-2 py-1 bg-slate-700 rounded-full">
@@ -103,10 +115,7 @@ const ChatComponent = ({ contractor, onBack }) => {
       </div>
 
       {/* Messages Area */}
-      <div 
-        ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/50"
-      >
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/50">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -169,11 +178,7 @@ const ChatComponent = ({ contractor, onBack }) => {
         </div>
       </div>
     </div>
-  
-        );
-  };
+  );
+};
 
-
-  export default ChatComponent;
-
-    
+export default ChatComponent;

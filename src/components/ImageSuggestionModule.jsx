@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, use } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, RefreshCw, CheckCircle2, ShieldCheck, MapPin, Phone, AlertTriangle, Hammer, KeySquare, MessageCircle } from 'lucide-react';
-import ChatComponent from './chattingModule.jsx';
 import { GoogleGenAI } from '@google/genai';
 import MOCK_CONTRACTORS from '../data/mockData';
+import { useNavigate } from 'react-router-dom';
 
 export default function ImageSuggestionModule() {
   const videoRef = useRef(null);
@@ -13,7 +13,7 @@ export default function ImageSuggestionModule() {
   const lastCallTime = useRef(0);
 
   // Usage Limiting Variables
-  const API_CALLS_PER_DAY = 4;
+  const API_CALLS_PER_DAY = 8;
 
   const lastCallDate = useRef(null);
   const callCount = useRef(0);
@@ -34,18 +34,11 @@ export default function ImageSuggestionModule() {
   const [matchedContractors, setMatchedContractors] = useState([]);
   const [apiError, setApiError] = useState(null);
 
-  // Chat state
-  const [showChat, setShowChat] = useState(false);
-  
-  
-  // const [isChatOpen, setIsChatOpen] = useState(false);
-  // const [contractor, setContractor] = useState(null);
-
+  const navigate = useNavigate();
   // Fallback search state
   const [searchQuery, setSearchQuery] = useState("");
 
   // Booking Modal State
-  const [selectedContractor, setSelectedContractor] = useState(null);
   const [bookingStep, setBookingStep] = useState(0); // 0 = Idle, 1 = Confirming, 2 = Dispatched Success
 
   // EFFECT 0: Load and persist usage data
@@ -61,7 +54,7 @@ export default function ImageSuggestionModule() {
         if (date === today) {
           callCount.current = count;
           lastCallDate.current = date;
-        }else{
+        } else {
           // New day - reset count
           callCount.current = 0;
           lastCallDate.current = today;
@@ -71,22 +64,22 @@ export default function ImageSuggestionModule() {
         callCount.current = 0;
         lastCallDate.current = new Date().toDateString();
       }
-        }else{
-          // First time - initialize
-          lastCallDate.current = new Date().toDateString();
-          callCount.current = 0; 
-        }
-      }, []); 
+    } else {
+      // First time - initialize
+      lastCallDate.current = new Date().toDateString();
+      callCount.current = 0;
+    }
+  }, []);
 
-      const [saveTrigger, setSaveTrigger] = useState(0);
+  const [saveTrigger, setSaveTrigger] = useState(0);
 
-      useEffect(() => {
-        if (lastCallDate.current){
-          localStorage.setItem('dailyUsage', JSON.stringify({ count: callCount.current, date: lastCallDate.current })); 
-        }
-      }, [saveTrigger]); 
+  useEffect(() => {
+    if (lastCallDate.current) {
+      localStorage.setItem('dailyUsage', JSON.stringify({ count: callCount.current, date: lastCallDate.current }));
+    }
+  }, [saveTrigger]);
 
-  
+
   //EFFECT 1: Initialize camera on mount
   useEffect(() => {
     startCamera();
@@ -148,7 +141,7 @@ export default function ImageSuggestionModule() {
 
     // Cleanup interval on unmount or when disabledUntil changes
     return () => clearInterval(interval);
-  }, [disabledUntil]); 
+  }, [disabledUntil]);
 
   // Helper to check if button is disabled
   const isButtonClickable = () => {
@@ -179,18 +172,18 @@ export default function ImageSuggestionModule() {
       callCount.current = 0;
       // Save the rest
       localStorage.setItem('dailyUsage', JSON.stringify({ count: callCount.current, date: lastCallDate.current }));
-      }
+    }
 
-    if (isButtonDisabled) return true; 
+    if (isButtonDisabled) return true;
 
     // Check if user has exceeded API call limit
-    if (callCount.current >= API_CALLS_PER_DAY) {   
+    if (callCount.current >= API_CALLS_PER_DAY) {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const resetTime = tomorrow.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric' });
 
       resetTimeRef.current = resetTime;
-      
+
       // Disable button for 24 hours when limit is reached
       disableButtonFor24Hours();
 
@@ -211,37 +204,18 @@ export default function ImageSuggestionModule() {
    */
   const incrementUsageCount = () => {
     callCount.current++;
-    
+
     // Trigger save to localStorage
     setSaveTrigger(prevTrigger => prevTrigger + 1);
-  };
-
-// NEW: Handle chat button click
-  const handleChatClick = (contractor) => {
-    setSelectedContractor(contractor);
-    setShowChat(true);
-    // Stop camera to save resources
-    stopCamera();
-  };
-
-  // NEW: Handle back from chat
-  const handleBackFromChat = () => {
-    setShowChat(false);
-    setSelectedContractor(null);
-    // Restart camera if no image captured
-    if (!capturedImage) {
-      startCamera();
-    }
   };
 
   const startCamera = async () => {
     setCameraError(null);
     setApiError(null);
-    setCapturedImage(null);
+    //setCapturedImage(null);
     setAnalysisResult(null);
     setMatchedContractors([]);
     setSearchQuery("");
-    setSelectedContractor(null);
     setBookingStep(0);
 
     try {
@@ -500,206 +474,195 @@ export default function ImageSuggestionModule() {
         <p className="text-xs text-slate-400 mt-1">Live Gemini Multimodal Diagnostic Interface</p>
       </header>
 
-      <main className="w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden flex flex-col" style={{height: '600px'}}>
-        
-        {/* Conditional Rendering: Chat or Camera */}
-        {showChat && selectedContractor ? (
-          // CHAT VIEW
-          <ChatComponent 
-            contractor={selectedContractor} 
-            onBack={handleBackFromChat} 
-          />
-        ) : (
-          // CAMERA VIEW (Your existing UI)
-          <>
+      <main className="w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden flex flex-col">
+
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* Viewport display portal */}
-        <div className="relative aspect-[3/4] bg-black w-full overflow-hidden flex items-center justify-center">
-          {!capturedImage && !cameraError && (
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-          )}
+            {/* Viewport display portal */}
+            <div className="relative aspect-[3/4] bg-black w-full overflow-hidden flex items-center justify-center">
+              {!capturedImage && !cameraError && (
+                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              )}
 
-          {capturedImage && (
-            <img src={capturedImage} alt="Captured asset state" className="w-full h-full object-cover" />
-          )}
+              {capturedImage && (
+                <img src={capturedImage} alt="Captured asset state" className="w-full h-full object-cover" />
+              )}
 
-          {cameraError && (
-            <div className="p-6 text-center text-sm text-red-400 flex flex-col items-center gap-2">
-              <AlertTriangle className="w-8 h-8 text-red-500" />
-              <p>{cameraError}</p>
-              <button onClick={startCamera} className="mt-4 px-4 py-2 bg-slate-700 text-white rounded-lg font-medium text-xs hover:bg-slate-600 transition">
-                Retry Connection
-              </button>
-            </div>
-          )}
+              {cameraError && (
+                <div className="p-6 text-center text-sm text-red-400 flex flex-col items-center gap-2">
+                  <AlertTriangle className="w-8 h-8 text-red-500" />
+                  <p>{cameraError}</p>
+                  <button onClick={startCamera} className="mt-4 px-4 py-2 bg-slate-700 text-white rounded-lg font-medium text-xs hover:bg-slate-600 transition">
+                    Retry Connection
+                  </button>
+                </div>
+              )}
 
-          {/* Interactive Live Processing Display Overlay */}
-          {isAnalyzing && (
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center space-y-4">
-              <RefreshCw className="w-10 h-10 text-teal-400 animate-spin" />
-              <div className="text-center">
-                <p className="text-teal-400 font-semibold tracking-wide text-sm uppercase animate-pulse">Running Multimodal Analysis</p>
-                <p className="text-xs text-slate-400 mt-1">Consulting Gemini 1.5 Flash API Hub...</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Localized Control Bay */}
-        <div className="p-4 bg-slate-800 border-t border-slate-700/60 flex flex-col items-center gap-3">
-          <div className="flex items-center justify-center gap-4">
-
-            {/* Hidden HTML input mechanism pointing to mobile local camera rolls */}
-
-            <input
-              type="file"
-              id="mobile-file-fallback"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-
-            {!capturedImage && !cameraError && (
-              <button
-                onClick={capturePhoto}
-                disabled={!isButtonClickable()}
-                className={`w-16 h-16 rounded-full bg-white border-4 border-slate-700 active:scale-95 transition-all shadow-lg flex items-center justify-center group ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}>
-
-                <Camera className="w-7 h-7 text-slate-900 group-hover:scale-110 transition-transform" />
-              </button>
-            )}
-
-            {capturedImage && !isAnalyzing && (
-              <button
-                onClick={startCamera}
-                disabled={!isButtonClickable()}
-                className={`flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-medium text-sm transition active:scale-95 ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}>
-
-                <RefreshCw className="w-4 h-4" /> Clear & Reset Frame
-              </button>
-            )}
-            {/* Accessibility label button mapping pointer clicks directly to the hidden uploader context */}
-            {!capturedImage && (
-              <label
-                htmlFor="mobile-file-fallback"
-                className={`flex items-center justify-center p-3.5 bg-slate-700 hover:bg-slate-600 text-teal-400 rounded-full border border-slate-600 cursor-pointer active:scale-95 transition shadow-md ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}
-                title="Upload From Photo Library" style={{ pointerEvents: isButtonClickable() ? 'auto' : 'none' }}>
-
-                <svg xmlns="http://w3.org" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2" />
-                </svg>
-              </label>
-            )}
-
-          </div>
-          {!capturedImage && (
-            <p className="text-[10px] text-slate-500 italic">
-              Tip: Press camera for real-time capture, or folder icon to upload from album files.
-            </p>)}
-
-
-          {/* Usage Limit Display */}
-          <p className="text-[13px] text-sm">
-            Free Daily Usage: <span className="text-white font-bold">{callCount.current}</span> / {API_CALLS_PER_DAY}
-          </p>
-
-          {/* Display 24-hour countdown if disabled */}
-          {isButtonDisabled && (
-            <p className="text-amber-100 text-sm font-medium">
-              ⌛ Button disabled for : {timeRemaining}
-            </p>
-          )} 
-
-          {callCount.current >= API_CALLS_PER_DAY && (
-            <span className="text-red-400 text-sm">
-              {/*Resets at {resetTimeRef.current || '00:00'}*/}
-              Resets at : {resetTimeRef.current || '00:00'}
-            </span>)}
-
-        </div>
-
-        {/* Runtime Exception Reporting Bar */}
-        {apiError && (
-          <div className="p-4 bg-red-500/10 border-t border-red-500/20 text-red-400 text-xs flex items-start gap-2.5">
-            <KeySquare className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
-            <div>
-              <span className="font-bold">API Processing Error:</span> {apiError}
-            </div>
-          </div>
-        )}
-
-
-
-        {/* Production AI Analytics Interface Card */}
-        {analysisResult && !isAnalyzing && (
-          <div className="p-5 border-t border-slate-700/60 bg-slate-850 space-y-5 animate-fadeIn">
-
-            <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/40">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  {analysisResult.severity || "Unknown Risk"}
-                </span>
-                <span className="text-xs text-slate-400 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-teal-400" /> Google AI Vision Verification
-                </span>
-              </div>
-              <h3 className="text-sm font-semibold text-slate-200">{analysisResult.issue}</h3>
-              {analysisResult.recommendation && (
-                <p className="text-xs text-teal-300 mt-2 bg-teal-500/5 p-2 rounded border border-teal-500/10">
-                  <span className="font-semibold text-teal-400">AI Safety Guidance:</span> {analysisResult.recommendation}
-                </p>
+              {/* Interactive Live Processing Display Overlay */}
+              {isAnalyzing && (
+                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center space-y-4">
+                  <RefreshCw className="w-10 h-10 text-teal-400 animate-spin" />
+                  <div className="text-center">
+                    <p className="text-teal-400 font-semibold tracking-wide text-sm uppercase animate-pulse">Running Multimodal Analysis</p>
+                    <p className="text-xs text-slate-400 mt-1">Consulting Gemini 1.5 Flash API Hub...</p>
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Smart Dispatched Contractors List */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Matched Specialized Contractors ({matchedContractors.length})
-              </h4>
+            {/* Localized Control Bay */}
+            <div className="p-4 bg-slate-800 border-t border-slate-700/60 flex flex-col items-center gap-3">
+              <div className="flex items-center justify-center gap-4">
 
-              {matchedContractors.length > 0 ? (
-                matchedContractors.map((contractor) => (
-                  <div key={contractor.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700/40 hover:border-slate-600 transition flex items-center justify-between group">
-                    <div className="space-y-1">
-                      <h5 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{contractor.name}</h5>
-                      <p className="text-xs text-slate-400">
-                        ⭐ {contractor.rating} ({contractor.reviews} reviews) • <span className="text-slate-300 font-medium">{contractor.certification}</span>
-                      </p>
-                      <span className="text-[11px] text-slate-400 flex items-center gap-0.5 pt-1">
-                        <MapPin className="w-3 h-3 text-red-400" /> Dispatch Time: {contractor.eta}
-                      </span>
-                    </div>
+                {/* Hidden HTML input mechanism pointing to mobile local camera rolls */}
 
-                  <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  id="mobile-file-fallback"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                {!capturedImage && !cameraError && (
+                  <button
+                    onClick={capturePhoto}
+                    disabled={!isButtonClickable()}
+                    className={`w-16 h-16 rounded-full bg-white border-4 border-slate-700 active:scale-95 transition-all shadow-lg flex items-center justify-center group ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}>
+
+                    <Camera className="w-7 h-7 text-slate-900 group-hover:scale-110 transition-transform" />
+                  </button>
+                )}
+
+                {capturedImage && !isAnalyzing && (
+                  <button
+                    onClick={startCamera}
+                    disabled={!isButtonClickable()}
+                    className={`flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-medium text-sm transition active:scale-95 ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}>
+
+                    <RefreshCw className="w-4 h-4" /> Clear & Reset Frame
+                  </button>
+                )}
+                {/* Accessibility label button mapping pointer clicks directly to the hidden uploader context */}
+                {!capturedImage && (
+                  <label
+                    htmlFor="mobile-file-fallback"
+                    className={`flex items-center justify-center p-3.5 bg-slate-700 hover:bg-slate-600 text-teal-400 rounded-full border border-slate-600 cursor-pointer active:scale-95 transition shadow-md ${!isButtonClickable() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title="Upload From Photo Library" style={{ pointerEvents: isButtonClickable() ? 'auto' : 'none' }}>
+
+                    <svg xmlns="http://w3.org" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </label>
+                )}
+
+              </div>
+              {!capturedImage && (
+                <p className="text-[10px] text-slate-500 italic">
+                  Tip: Press camera for real-time capture, or folder icon to upload from album files.
+                </p>)}
+
+
+              {/* Usage Limit Display */}
+              <p className="text-[13px] text-sm">
+                Free Daily Usage: <span className="text-white font-bold">{callCount.current}</span> / {API_CALLS_PER_DAY}
+              </p>
+
+              {/* Display 24-hour countdown if disabled */}
+              {isButtonDisabled && (
+                <p className="text-amber-100 text-sm font-medium">
+                  ⌛ Button disabled for : {timeRemaining}
+                </p>
+              )}
+
+              {callCount.current >= API_CALLS_PER_DAY && (
+                <span className="text-red-400 text-sm">
+                  {/*Resets at {resetTimeRef.current || '00:00'}*/}
+                  Resets at : {resetTimeRef.current || '00:00'}
+                </span>)}
+
+            </div>
+
+            {/* Runtime Exception Reporting Bar */}
+            {apiError && (
+              <div className="p-4 bg-red-500/10 border-t border-red-500/20 text-red-400 text-xs flex items-start gap-2.5">
+                <KeySquare className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                <div>
+                  <span className="font-bold">API Processing Error:</span> {apiError}
+                </div>
+              </div>
+            )}
+
+
+
+            {/* Production AI Analytics Interface Card */}
+            {analysisResult && !isAnalyzing && (
+              <div className="p-5 border-t border-slate-700/60 bg-slate-850 space-y-5 animate-fadeIn">
+
+                <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/40">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {analysisResult.severity || "Unknown Risk"}
+                    </span>
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-teal-400" /> Google AI Vision Verification
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-200">{analysisResult.issue}</h3>
+                  {analysisResult.recommendation && (
+                    <p className="text-xs text-teal-300 mt-2 bg-teal-500/5 p-2 rounded border border-teal-500/10">
+                      <span className="font-semibold text-teal-400">AI Safety Guidance:</span> {analysisResult.recommendation}
+                    </p>
+                  )}
+                </div>
+
+                {/* Smart Dispatched Contractors List */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Matched Specialized Contractors ({matchedContractors.length})
+                  </h4>
+
+                  {matchedContractors.length > 0 ? (
+                    matchedContractors.map((contractor) => (
+                      <div key={contractor.id} className="bg-slate-900 p-4 rounded-xl border border-slate-700/40 hover:border-slate-600 transition flex items-center justify-between group">
+                        <div className="space-y-1">
+                          <h5 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{contractor.name}</h5>
+                          <p className="text-xs text-slate-400">
+                            ⭐ {contractor.rating} ({contractor.reviews} reviews) • <span className="text-slate-300 font-medium">{contractor.certification}</span>
+                          </p>
+                          <span className="text-[11px] text-slate-400 flex items-center gap-0.5 pt-1">
+                            <MapPin className="w-3 h-3 text-red-400" /> Dispatch Time: {contractor.eta}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
                           {/* NEW: Chat Button */}
                           <button
-                            onClick={() => handleChatClick(contractor)}
+                            onClick={() => navigate(`/chat/${contractor.id}`)}
                             className="p-3 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl transition duration-200"
                             title="Chat with contractor"
                           >
                             <MessageCircle className="w-4 h-4" />
                           </button>
-                  </div>
+                        </div>
 
-                    {/* Phone Button */}
-                    <a href={`tel:${contractor.phone}`} className="p-3 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl transition duration-200">
-                      <Phone className="w-4 h-4" />
-                    </a>
+                        {/* Phone Button 
+                        <a href={`tel:${contractor.phone}`} className="p-3 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl transition duration-200">
+                          <Phone className="w-4 h-4" />
+                        </a> */}
 
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-slate-500 italic p-2">
-                  No contractors in our local database specialize in categorized type "{analysisResult.type}".
-                </p>
-              )}
-            </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500 italic p-2">
+                      No contractors in our local database specialize in categorized type "{analysisResult.type}".
+                    </p>
+                  )}
+                </div>
 
-          </div>
-        )}
-        </>
-        )}
+              </div>
+            )}
+         
       </main>
     </div>
   );
