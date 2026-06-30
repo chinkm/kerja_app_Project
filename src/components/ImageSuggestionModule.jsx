@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, use } from 'react';
-import { Camera, RefreshCw, CheckCircle2, ShieldCheck, MapPin, Phone, AlertTriangle, Hammer, KeySquare } from 'lucide-react';
+import { Camera, RefreshCw, CheckCircle2, ShieldCheck, MapPin, Phone, AlertTriangle, Hammer, KeySquare, MessageCircle } from 'lucide-react';
+import ChatComponent from './chattingModule.jsx';
 import { GoogleGenAI } from '@google/genai';
 import MOCK_CONTRACTORS from '../data/mockData';
 
@@ -14,38 +15,8 @@ export default function ImageSuggestionModule() {
   // Usage Limiting Variables
   const API_CALLS_PER_DAY = 4;
 
-  const lastCallDate = useRef(() => {
-    const saved = localStorage.getItem('dailyUsage');
-    if (saved) {
-      try {
-        const { date } = JSON.parse(saved);
-        return date;
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  })();
-
-
-
-  const callCount = useRef(() => {
-    const saved = localStorage.getItem('dailyUsage');
-    if (saved) {
-      try {
-        const { count, date } = JSON.parse(saved);
-        const today = new Date().toDateString();
-        // Only use saved count if it's from today
-        if (date === today) {
-          return count;
-        }
-      } catch (e) {
-        return 0;
-      }
-    }
-    return 0;
-  })();
-
+  const lastCallDate = useRef(null);
+  const callCount = useRef(0);
   const resetTimeRef = useRef(null);
 
   //24-hour disable state
@@ -62,6 +33,13 @@ export default function ImageSuggestionModule() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [matchedContractors, setMatchedContractors] = useState([]);
   const [apiError, setApiError] = useState(null);
+
+  // Chat state
+  const [showChat, setShowChat] = useState(false);
+  
+  
+  // const [isChatOpen, setIsChatOpen] = useState(false);
+  // const [contractor, setContractor] = useState(null);
 
   // Fallback search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -106,7 +84,7 @@ export default function ImageSuggestionModule() {
         if (lastCallDate.current){
           localStorage.setItem('dailyUsage', JSON.stringify({ count: callCount.current, date: lastCallDate.current })); 
         }
-      }, [saveTrigger]);
+      }, [saveTrigger]); 
 
   
   //EFFECT 1: Initialize camera on mount
@@ -170,7 +148,7 @@ export default function ImageSuggestionModule() {
 
     // Cleanup interval on unmount or when disabledUntil changes
     return () => clearInterval(interval);
-  }, [disabledUntil]);
+  }, [disabledUntil]); 
 
   // Helper to check if button is disabled
   const isButtonClickable = () => {
@@ -203,20 +181,23 @@ export default function ImageSuggestionModule() {
       localStorage.setItem('dailyUsage', JSON.stringify({ count: callCount.current, date: lastCallDate.current }));
       }
 
+    if (isButtonDisabled) return true; 
+
     // Check if user has exceeded API call limit
-    if (callCount.current >= API_CALLS_PER_DAY) {
+    if (callCount.current >= API_CALLS_PER_DAY) {   
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const resetTime = tomorrow.toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric' });
 
       resetTimeRef.current = resetTime;
-
+      
       // Disable button for 24 hours when limit is reached
       disableButtonFor24Hours();
 
 
       // Set API error message
       setApiError(`Free call limit exceeded. Please try again after ${tomorrow.toLocaleDateString('en-US')} at ${resetTime}.`);
+
       return true;
     }
 
@@ -230,8 +211,27 @@ export default function ImageSuggestionModule() {
    */
   const incrementUsageCount = () => {
     callCount.current++;
+    
     // Trigger save to localStorage
     setSaveTrigger(prevTrigger => prevTrigger + 1);
+  };
+
+// NEW: Handle chat button click
+  const handleChatClick = (contractor) => {
+    setSelectedContractor(contractor);
+    setShowChat(true);
+    // Stop camera to save resources
+    stopCamera();
+  };
+
+  // NEW: Handle back from chat
+  const handleBackFromChat = () => {
+    setShowChat(false);
+    setSelectedContractor(null);
+    // Restart camera if no image captured
+    if (!capturedImage) {
+      startCamera();
+    }
   };
 
   const startCamera = async () => {
@@ -304,8 +304,8 @@ export default function ImageSuggestionModule() {
       img.src = base64Str;
       img.onload = () => {
         // Calculate proportional scale dimensions
-        const width = img.width;
-        const height = img.height;
+        let width = img.width;
+        let height = img.height;
         if (width > maxWidth) {
           height = Math.round((height * maxWidth) / width);
           width = maxWidth;
@@ -415,6 +415,13 @@ export default function ImageSuggestionModule() {
 
   const analyzeImageWithGemini = async (base64Image) => {
 
+    // Check daily limit first
+    if (checkUsageLimit()) {
+      // Limit - exceeded - button will be disabled and timer started
+      setIsAnalyzing(false);
+      return;
+    }
+
     const result = await makeApiCallWithRateLimit(async () => {
       setIsAnalyzing(true);
       setApiError(null);
@@ -493,7 +500,18 @@ export default function ImageSuggestionModule() {
         <p className="text-xs text-slate-400 mt-1">Live Gemini Multimodal Diagnostic Interface</p>
       </header>
 
-      <main className="w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden flex flex-col">
+      <main className="w-full max-w-md bg-slate-800 rounded-2xl border border-slate-700/50 shadow-xl overflow-hidden flex flex-col" style={{height: '600px'}}>
+        
+        {/* Conditional Rendering: Chat or Camera */}
+        {showChat && selectedContractor ? (
+          // CHAT VIEW
+          <ChatComponent 
+            contractor={selectedContractor} 
+            onBack={handleBackFromChat} 
+          />
+        ) : (
+          // CAMERA VIEW (Your existing UI)
+          <>
         <canvas ref={canvasRef} className="hidden" />
 
         {/* Viewport display portal */}
@@ -587,15 +605,16 @@ export default function ImageSuggestionModule() {
           </p>
 
           {/* Display 24-hour countdown if disabled */}
-          {!isButtonDisabled && (
+          {isButtonDisabled && (
             <p className="text-amber-100 text-sm font-medium">
               ⌛ Button disabled for : {timeRemaining}
             </p>
-          )}
+          )} 
 
           {callCount.current >= API_CALLS_PER_DAY && (
             <span className="text-red-400 text-sm">
-              Resets at {resetTimeRef.current || '00:00'}
+              {/*Resets at {resetTimeRef.current || '00:00'}*/}
+              Resets at : {resetTimeRef.current || '00:00'}
             </span>)}
 
         </div>
@@ -651,9 +670,23 @@ export default function ImageSuggestionModule() {
                         <MapPin className="w-3 h-3 text-red-400" /> Dispatch Time: {contractor.eta}
                       </span>
                     </div>
+
+                  <div className="flex items-center gap-2">
+                          {/* NEW: Chat Button */}
+                          <button
+                            onClick={() => handleChatClick(contractor)}
+                            className="p-3 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl transition duration-200"
+                            title="Chat with contractor"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                  </div>
+
+                    {/* Phone Button */}
                     <a href={`tel:${contractor.phone}`} className="p-3 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl transition duration-200">
                       <Phone className="w-4 h-4" />
                     </a>
+
                   </div>
                 ))
               ) : (
@@ -665,9 +698,9 @@ export default function ImageSuggestionModule() {
 
           </div>
         )}
+        </>
+        )}
       </main>
-
-
     </div>
   );
 }
