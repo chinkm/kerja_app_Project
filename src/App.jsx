@@ -105,7 +105,7 @@ function AppContent() {
     );
 }
 
-// ✅ Main App with Router at the top level
+//  Main App with Router at the top level
 function App() {
   return (
     <BrowserRouter>
