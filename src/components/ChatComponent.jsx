@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, ArrowLeft, User, Wrench, Phone, MapPin } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from '../firebase';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+
 import MOCK_CONTRACTORS from '../data/mockData';
 const ChatComponent = () => {
     const { contractorId } = useParams();

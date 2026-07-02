@@ -504,7 +504,7 @@ export default function ImageSuggestionModule() {
                   <RefreshCw className="w-10 h-10 text-teal-400 animate-spin" />
                   <div className="text-center">
                     <p className="text-teal-400 font-semibold tracking-wide text-sm uppercase animate-pulse">Running Multimodal Analysis</p>
-                    <p className="text-xs text-slate-400 mt-1">Consulting Gemini 1.5 Flash API Hub...</p>
+                    <p className="text-xs text-slate-400 mt-1">Consulting Gemini 2.5 Flash API Hub...</p>
                   </div>
                 </div>
               )}
